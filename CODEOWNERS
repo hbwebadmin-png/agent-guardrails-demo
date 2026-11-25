@@ -1,0 +1,6 @@
+# Require a human review for every demo change.
+* @sfc-gh-hbarile
+
+# Treat workflow and security-sensitive changes as a separate review path.
+.github/workflows/ @sfc-gh-hbarile
+personas/ @sfc-gh-hbarile

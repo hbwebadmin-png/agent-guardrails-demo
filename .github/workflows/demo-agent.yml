@@ -1,0 +1,65 @@
+name: Web Agent Demo
+
+# When this workflow runs:
+#   - on every pull request into main (the agent's PRs)
+#   - when a human clicks "Run workflow" in the Actions tab
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      jira_issue:
+        description: Jira ticket key (for example DEMO-1)
+        required: true
+        type: string
+      plan_approved:
+        description: A human approved the agent's plan in Jira
+        required: true
+        default: false
+        type: boolean
+
+# Least privilege: the workflow can read the code but not change the repo.
+permissions:
+  contents: read
+
+jobs:
+  plan-approval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require human plan approval for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          JIRA_ISSUE: ${{ inputs.jira_issue }}
+          PLAN_APPROVED: ${{ inputs.plan_approved }}
+        run: |
+          if [ "$PLAN_APPROVED" != "true" ]; then
+            echo "::error::Plan for $JIRA_ISSUE is not approved. Agent work is blocked."
+            exit 1
+          fi
+          echo "Plan for $JIRA_ISSUE approved by a human. Agent work may proceed."
+
+  tests:
+    needs: plan-approval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -t . -v
+
+  dependency-scan:
+    needs: plan-approval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Scan pinned dependencies for known vulnerabilities
+        run: pip-audit -r requirements.txt
